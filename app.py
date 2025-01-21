@@ -3,6 +3,7 @@ import pandas as pd
 import streamlit as st
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 # Konfigurasi Layout
 st.set_page_config(
@@ -47,9 +48,10 @@ def load_data():
     
     # Hapus baris dengan NaT di kolom Tanggal
     data = data.dropna(subset=['Tanggal'])
-    # Tambahkan kolom Tahun dan Bulan
+    # Tambahkan kolom Tahun, Bulan, dan Jam
     data['Tahun'] = data['Tanggal'].dt.year
     data['Bulan'] = data['Tanggal'].dt.month
+    data['Jam'] = data['Tanggal'].dt.hour
     return data
 
 # Panggil fungsi untuk load data
@@ -69,6 +71,25 @@ else:
     # Tampilkan Data
     st.markdown(f"### 🗓️ Data Berita Pilkada Tahun {selected_tahun}")
     st.dataframe(filtered_data[['Tanggal', 'Judul', 'Deskripsi', 'Kategori', 'Link']])
+
+       # Summary Matrik
+    st.markdown(f"### 📊 Ringkasan Matrik Data Tahun {selected_tahun}")
+    if not filtered_data.empty:
+        total_berita = filtered_data.shape[0]
+        kategori_terbanyak = filtered_data['Kategori'].mode()[0] if not filtered_data['Kategori'].mode().empty else "Tidak ada data"
+        rata_rata_panjang_judul = filtered_data['Judul'].str.len().mean()
+
+        col1, col2, col3 = st.columns(3)
+
+        with col1:
+            st.metric(label="Total Berita", value=total_berita)
+        with col2:
+            st.metric(label="Kategori Terbanyak", value=kategori_terbanyak)
+        with col3:
+            st.metric(label="Rata-rata Panjang Judul", value=f"{rata_rata_panjang_judul:.2f} karakter")
+    else:
+        st.write("Tidak ada data untuk dirangkum.")
+
 
     # Insight 1: Distribusi Jumlah Berita per Bulan
     st.markdown(f"### 📅 Distribusi Jumlah Berita per Bulan (Tahun {selected_tahun})")
@@ -116,3 +137,64 @@ else:
         st.write(top_news)
     else:
         st.write("Tidak ada data berita populer untuk tahun ini.")
+
+    # Insight 5: Distribusi Waktu (Jam) Berita Diterbitkan
+    st.markdown(f"### ⏰ Distribusi Waktu (Jam) Berita Diterbitkan (Tahun {selected_tahun})")
+    if not filtered_data.empty:
+        hourly_count = filtered_data['Tanggal'].dt.hour.value_counts().sort_index()
+        st.bar_chart(hourly_count)
+        st.write("Distribusi ini menunjukkan waktu (jam) ketika berita paling sering diterbitkan.")
+    else:
+        st.write("Tidak ada data untuk distribusi waktu publikasi.")
+
+    # Insight 6: Heatmap Distribusi Waktu Publikasi
+    st.markdown(f"### 🌡️ Heatmap Distribusi Waktu Publikasi (Tahun {selected_tahun})")
+    if not filtered_data.empty:
+        filtered_data['Hari'] = filtered_data['Tanggal'].dt.day_name()
+        heatmap_data = filtered_data.pivot_table(index='Hari', columns='Jam', aggfunc='size', fill_value=0)
+        fig, ax = plt.subplots(figsize=(10, 6))
+        sns.heatmap(heatmap_data, cmap="YlGnBu", annot=True, fmt="d", ax=ax)
+        plt.title("Heatmap Distribusi Waktu Publikasi")
+        st.pyplot(fig)
+    else:
+        st.write("Tidak ada data untuk membuat heatmap distribusi waktu publikasi.")
+
+    # Insight 7: Distribusi Panjang Judul Berita
+    st.markdown(f"### 📝 Distribusi Panjang Judul Berita (Tahun {selected_tahun})")
+    if not filtered_data.empty:
+        filtered_data['Panjang Judul'] = filtered_data['Judul'].str.len()
+        fig, ax = plt.subplots()
+        ax.hist(filtered_data['Panjang Judul'], bins=20, color="skyblue", edgecolor="black")
+        ax.set_title("Distribusi Panjang Judul Berita")
+        ax.set_xlabel("Panjang Judul (Jumlah Karakter)")
+        ax.set_ylabel("Jumlah Berita")
+        st.pyplot(fig)
+    else:
+        st.write("Tidak ada data untuk analisis panjang judul.")
+
+    # Insight 8: Frekuensi Berita Berdasarkan Kata Kunci
+    st.markdown(f"### 🔍 Frekuensi Berita Berdasarkan Kata Kunci (Tahun {selected_tahun})")
+    keywords = st.sidebar.multiselect("Kata Kunci Bertita:", ["pilkada", "calon", "pemilu", "politik", "kampanye"])
+    if not filtered_data.empty and keywords:
+        keyword_count = {keyword: filtered_data['Judul'].str.contains(keyword, case=False, na=False).sum() for keyword in keywords}
+        st.bar_chart(keyword_count)
+        st.write("Analisis ini menunjukkan jumlah berita yang mengandung kata kunci tertentu.")
+    else:
+        st.write("Masukkan kata kunci untuk melihat distribusinya.")
+
+    # Insight 9: Distribusi Kategori Berdasarkan Bulan
+    st.markdown(f"### 🗂️ Distribusi Kategori Berdasarkan Bulan (Tahun {selected_tahun})")
+    if not filtered_data.empty:
+        kategori_bulan = filtered_data.groupby(['Bulan', 'Kategori']).size().unstack(fill_value=0)
+        st.bar_chart(kategori_bulan)
+        st.write("Distribusi ini menunjukkan kategori berita yang dominan setiap bulannya.")
+    else:
+        st.write("Tidak ada data untuk distribusi kategori berdasarkan bulan.")
+
+    # Insight 10: Berita Terbaru
+    st.markdown(f"### 📰 Berita Terbaru (Tahun {selected_tahun})")
+    latest_news = filtered_data.sort_values(by='Tanggal', ascending=False).head(10)
+    if not latest_news.empty:
+        st.table(latest_news[['Tanggal', 'Judul', 'Kategori', 'Link']])
+    else:
+        st.write("Tidak ada berita terbaru untuk ditampilkan.")
